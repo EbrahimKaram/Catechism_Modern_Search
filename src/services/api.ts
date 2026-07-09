@@ -1,18 +1,24 @@
 export async function fetchLocalData(query: string): Promise<string> {
   try {
-    // 1. Fetch the master file containing the entire Catechism
-    const response = await fetch(`/catechism-app/data/catechism_all.json`);
-    if (!response.ok) {
+    // 1. Fetch the master file and TOC map
+    const [catResponse, tocResponse] = await Promise.all([
+      fetch(`/catechism-app/data/catechism_all.json`),
+      fetch(`/catechism-app/data/toc_map.json`)
+    ]);
+
+    if (!catResponse.ok) {
       throw new Error(`Master catechism file not found`);
     }
-    const data = await response.json();
+    const data = await catResponse.json();
     const fullHtml = data.html; // The entire HTML dump of every paragraph
 
+    const tocMap = tocResponse.ok ? await tocResponse.json() : {};
+
     // 2. Parse the query to find exactly what the user wants to see
-    const requestedParagraphs = parseQueryNumbers(query);
+    const requestedParagraphs = parseQueryNumbers(query, tocMap);
     if (requestedParagraphs.size === 0) {
        // If we can't parse paragraph numbers (maybe they put in a word?), just return a message
-       return `<div class="p-4 bg-yellow-50 text-yellow-800 rounded">Search by keyword or section reference is not supported locally. Please enter paragraph numbers.</div>`;
+       return `<div class="p-4 bg-yellow-50 text-yellow-800 rounded">Search by keyword is not supported locally. Please enter paragraph numbers or section numbers.</div>`;
     }
 
     // 3. Extract the requested paragraphs out of the massive HTML block
@@ -30,10 +36,9 @@ export async function fetchLocalData(query: string): Promise<string> {
 }
 
 /**
- * Converts a query string like "522,711-716,722" into a Set of numbers: {522, 711, 712, 713, 714, 715, 716, 722}.
- * It will not parse section references like "1.1.2.3".
+ * Converts a query string like "522,711-716,722" or "1.1.2.3" into a Set of numbers.
  */
-function parseQueryNumbers(query: string): Set<number> {
+function parseQueryNumbers(query: string, tocMap: Record<string, [number, number]> = {}): Set<number> {
   const result = new Set<number>();
   
   // Split by commas first
@@ -42,8 +47,14 @@ function parseQueryNumbers(query: string): Set<number> {
     const p = part.trim();
     if (!p) continue;
 
-    // Discard section queries like 1.1.2.3
+    // Check if it's a section query like 1.1.2.3
     if (p.includes('.') && !p.includes('-')) {
+      if (tocMap[p]) {
+        const [start, end] = tocMap[p];
+        for (let i = start; i <= end; i++) {
+          result.add(i);
+        }
+      }
       continue;
     }
     

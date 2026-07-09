@@ -73,7 +73,26 @@ async function scrapeCatechism() {
     JSON.stringify(combinedJson)
   );
 
-  console.log('Scrape complete! Data saved to public/data/catechism_all.json');
+  // Extract Table of Contents structure for section queries
+  console.log('Generating Table of Contents map...');
+  const tocRegex = /<div class="navigation">.*?href="#!\/search\/s([0-9.]+)">.*?<\/a>\s*\(([\d]+)\s*-\s*([\d]+)\)<\/div>/g;
+  const tocMatches = [...allHtmlContent.matchAll(tocRegex)];
+  const tocMap = {};
+  
+  tocMatches.forEach(m => {
+    const section = m[1];
+    const start = parseInt(m[2], 10);
+    const end = parseInt(m[3], 10);
+    tocMap[section] = [start, end];
+  });
+  
+  fs.writeFileSync(
+    path.join(dataDir, 'toc_map.json'),
+    JSON.stringify(tocMap)
+  );
+
+  console.log(`Scrape complete! Found ${Object.keys(tocMap).length} sections.`);
+  console.log('Data saved to public/data/catechism_all.json and public/data/toc_map.json');
 }
 
 scrapeCatechism().catch(console.error);
