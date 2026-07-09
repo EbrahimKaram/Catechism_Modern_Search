@@ -77,7 +77,7 @@ function parseQueryNumbers(query: string, tocMap: Record<string, [number, number
 }
 
 /**
- * Uses DOMParser to find all div elements with ID `para-X` and return them as a single string.
+ * Uses DOMParser to find all div elements with ID `para-X`, fix their internal links, and return them as a single string.
  */
 function extractParagraphsFromHtml(html: string, requestedParagraphs: Set<number>): string {
   const parser = new DOMParser();
@@ -93,6 +93,49 @@ function extractParagraphsFromHtml(html: string, requestedParagraphs: Set<number
     const pElement = doc.getElementById(elementId);
     
     if (pElement) {
+      // Fix links: the original HTML contains href="#!/search/something"
+      const links = pElement.querySelectorAll('a');
+      links.forEach(link => {
+        const href = link.getAttribute('href');
+        if (href && href.startsWith('#!/search/')) {
+          const target = href.replace('#!/search/', '');
+          
+          // 1. Footnote Superscript -> Footnote Body
+          if (target.includes('/fn/')) {
+             const match = target.match(/\/fn\/(.+)/);
+             if (match) {
+               const targetId = 'fn:' + match[1];
+               link.setAttribute('href', 'javascript:void(0)');
+               link.setAttribute('onclick', `document.getElementById('${targetId}')?.scrollIntoView({behavior: 'smooth'})`);
+             }
+          } 
+          // 2. Footnote Body -> Back to Superscript
+          else if (target.includes('/fnref/')) {
+             const match = target.match(/\/fnref\/(.+)/);
+             if (match) {
+               // The original HTML often uses a dot instead of colon for the backlink
+               const targetId = 'fnref:' + match[1].replace('.', ':');
+               link.setAttribute('href', 'javascript:void(0)');
+               link.setAttribute('onclick', `document.getElementById('${targetId}')?.scrollIntoView({behavior: 'smooth'})`);
+             }
+          }
+          // 3. Catechism Cross References (pure numbers, ranges, or sections)
+          else if (/^s?[\d.,\-]+$/.test(target)) {
+             // Strip leading 's' if present so our router handles it properly (our router expects 1.1.2.3, not s1.1.2.3)
+             const cleanTarget = target.startsWith('s') ? target.substring(1) : target;
+             link.setAttribute('href', `#!/search/${cleanTarget}`);
+          }
+          // 4. Bible Verses & External References
+          else {
+             const verse = decodeURIComponent(target);
+             // Link to Bible Gateway Catholic Edition (RSVCE)
+             link.setAttribute('href', `https://www.biblegateway.com/passage/?search=${encodeURIComponent(verse)}&version=RSVCE`);
+             link.setAttribute('target', '_blank');
+             link.setAttribute('rel', 'noopener noreferrer');
+          }
+        }
+      });
+
       // Wrap it in the standard section classes the original website uses so it styles correctly
       resultHtml += `<div class="section">${pElement.outerHTML}</div>`;
     }
