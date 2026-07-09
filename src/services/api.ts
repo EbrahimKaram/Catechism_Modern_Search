@@ -50,19 +50,24 @@ function parseQueryNumbers(query: string, tocMap: Record<string, [number, number
      return result; // return immediately for exact verse matches
   }
 
+  // Handle 's1' type section searches
+  let parsedQuery = cleanQuery.toLowerCase();
+  if (parsedQuery.startsWith('s')) {
+    parsedQuery = parsedQuery.substring(1);
+  }
+
   // Split by commas first
-  const parts = query.split(',');
+  const parts = parsedQuery.split(',');
   for (const part of parts) {
     const p = part.trim();
     if (!p) continue;
 
-    // Check if it's a section query like 1.1.2.3
-    if (p.includes('.') && !p.includes('-')) {
-      if (tocMap[p]) {
-        const [start, end] = tocMap[p];
-        for (let i = start; i <= end; i++) {
-          result.add(i);
-        }
+    // Check if it's a section query like 1.1.2.3 or 0 (Prologue)
+    // We check tocMap directly for full match or string split matching
+    if (tocMap[p]) {
+      const [start, end] = tocMap[p];
+      for (let i = start; i <= end; i++) {
+        result.add(i);
       }
       continue;
     }
@@ -97,11 +102,39 @@ function extractParagraphsFromHtml(html: string, requestedParagraphs: Set<number
   // Convert Set to Array and sort to return paragraphs in numerical order
   const sortedParagraphs = Array.from(requestedParagraphs).sort((a, b) => a - b);
   
+  // Keep track of the last breadcrumb HTML we injected so we don't duplicate it
+  // if sequential paragraphs share the same exact section headers.
+  let lastBreadcrumbHtml = '';
+  
   for (const pNum of sortedParagraphs) {
     const elementId = `para-${pNum}`;
     const pElement = doc.getElementById(elementId);
     
     if (pElement) {
+      // Traverse up to find section headers
+      const foundHeaders: string[] = [];
+      let parent = pElement.parentElement;
+      while (parent && parent.tagName === 'DIV') {
+        if (parent.classList.contains('section')) {
+           const nav = parent.querySelector(':scope > .navigation');
+           if (nav) {
+              foundHeaders.unshift(nav.outerHTML);
+           }
+        }
+        parent = parent.parentElement;
+      }
+
+      let currentBreadcrumbHtml = '';
+      if (foundHeaders.length > 0) {
+         currentBreadcrumbHtml = `<div class="breadcrumbs p-3 bg-blue-50 border border-blue-100 rounded-md mb-4 text-sm text-blue-900">${foundHeaders.join('<div class="my-1"></div>')}</div>`;
+      }
+
+      // If the breadcrumb changed (we entered a new section relative to the last paragraph rendered), append it
+      if (currentBreadcrumbHtml !== lastBreadcrumbHtml) {
+         resultHtml += currentBreadcrumbHtml;
+         lastBreadcrumbHtml = currentBreadcrumbHtml;
+      }
+
       // Fix links: the original HTML contains href="#!/search/something"
       const links = pElement.querySelectorAll('a');
       links.forEach(link => {
@@ -130,9 +163,7 @@ function extractParagraphsFromHtml(html: string, requestedParagraphs: Set<number
           }
           // 3. Catechism Cross References (pure numbers, ranges, or sections)
           else if (/^s?[\d.,\-]+$/.test(target)) {
-             // Strip leading 's' if present so our router handles it properly (our router expects 1.1.2.3, not s1.1.2.3)
-             const cleanTarget = target.startsWith('s') ? target.substring(1) : target;
-             link.setAttribute('href', `#!/search/${cleanTarget}`);
+             link.setAttribute('href', `#!/search/${target}`);
           }
           // 4. Bible Verses & External References
           else {
@@ -161,7 +192,8 @@ function extractParagraphsFromHtml(html: string, requestedParagraphs: Set<number
       });
 
       // Wrap it in the standard section classes the original website uses so it styles correctly
-      resultHtml += `<div class="section">${pElement.outerHTML}</div>`;
+      // Add a subtle bottom border to separate multiple paragraphs nicely
+      resultHtml += `<div class="section pb-6 mb-6 border-b border-gray-100 last:border-0">${pElement.outerHTML}</div>`;
     }
   }
   
