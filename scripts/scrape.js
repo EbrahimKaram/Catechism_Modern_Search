@@ -90,6 +90,8 @@ async function scrapeCatechism() {
     path.join(dataDir, 'toc_map.json'),
     JSON.stringify(tocMap)
   );
+  
+  // NOTE: You must also run "node scripts/generate_verse_map.cjs" to regenerate verse maps!
 
   console.log(`Scrape complete! Found ${Object.keys(tocMap).length} sections.`);
   console.log('Data saved to public/data/catechism_all.json and public/data/toc_map.json');

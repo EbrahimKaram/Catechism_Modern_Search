@@ -1,9 +1,10 @@
 export async function fetchLocalData(query: string): Promise<string> {
   try {
-    // 1. Fetch the master file and TOC map
-    const [catResponse, tocResponse] = await Promise.all([
+    // 1. Fetch the master file and maps
+    const [catResponse, tocResponse, verseResponse] = await Promise.all([
       fetch(`/Catechism_Modern_Search/data/catechism_all.json`),
-      fetch(`/Catechism_Modern_Search/data/toc_map.json`)
+      fetch(`/Catechism_Modern_Search/data/toc_map.json`),
+      fetch(`/Catechism_Modern_Search/data/verse_map.json`)
     ]);
 
     if (!catResponse.ok) {
@@ -13,12 +14,13 @@ export async function fetchLocalData(query: string): Promise<string> {
     const fullHtml = data.html; // The entire HTML dump of every paragraph
 
     const tocMap = tocResponse.ok ? await tocResponse.json() : {};
+    const verseMap = verseResponse.ok ? await verseResponse.json() : {};
 
     // 2. Parse the query to find exactly what the user wants to see
-    const requestedParagraphs = parseQueryNumbers(query, tocMap);
+    const requestedParagraphs = parseQueryNumbers(query, tocMap, verseMap);
     if (requestedParagraphs.size === 0) {
        // If we can't parse paragraph numbers (maybe they put in a word?), just return a message
-       return `<div class="p-4 bg-yellow-50 text-yellow-800 rounded">Search by keyword is not supported locally. Please enter paragraph numbers or section numbers.</div>`;
+       return `<div class="p-4 bg-yellow-50 text-yellow-800 rounded">No matching paragraphs found. We currently support searching by paragraph number, section number (e.g. 1.1.2), or exact bible verse.</div>`;
     }
 
     // 3. Extract the requested paragraphs out of the massive HTML block
@@ -36,11 +38,18 @@ export async function fetchLocalData(query: string): Promise<string> {
 }
 
 /**
- * Converts a query string like "522,711-716,722" or "1.1.2.3" into a Set of numbers.
+ * Converts a query string into a Set of numbers.
  */
-function parseQueryNumbers(query: string, tocMap: Record<string, [number, number]> = {}): Set<number> {
+function parseQueryNumbers(query: string, tocMap: Record<string, [number, number]> = {}, verseMap: Record<string, number[]> = {}): Set<number> {
   const result = new Set<number>();
   
+  // Clean query and check verse map first if it's text
+  const cleanQuery = query.trim();
+  if (verseMap[cleanQuery]) {
+     verseMap[cleanQuery].forEach(n => result.add(n));
+     return result; // return immediately for exact verse matches
+  }
+
   // Split by commas first
   const parts = query.split(',');
   for (const part of parts) {
@@ -128,10 +137,25 @@ function extractParagraphsFromHtml(html: string, requestedParagraphs: Set<number
           // 4. Bible Verses & External References
           else {
              const verse = decodeURIComponent(target);
-             // Link to Bible Gateway Catholic Edition (RSVCE)
-             link.setAttribute('href', `https://www.biblegateway.com/passage/?search=${encodeURIComponent(verse)}&version=RSVCE`);
-             link.setAttribute('target', '_blank');
-             link.setAttribute('rel', 'noopener noreferrer');
+             const gatewayUrl = `https://www.biblegateway.com/passage/?search=${encodeURIComponent(verse)}&version=RSVCE`;
+             
+             // Split style: The text itself links to the internal cross-reference search,
+             // and we inject a small book icon next to it for the Gateway link.
+             link.setAttribute('href', `#!/search/${encodeURIComponent(verse)}`);
+             
+             // Create the external launch icon
+             const externalIcon = document.createElement('a');
+             externalIcon.setAttribute('href', gatewayUrl);
+             externalIcon.setAttribute('target', '_blank');
+             externalIcon.setAttribute('rel', 'noopener noreferrer');
+             externalIcon.setAttribute('title', 'Read this chapter on Bible Gateway');
+             externalIcon.style.marginLeft = '4px';
+             externalIcon.style.opacity = '0.7';
+             externalIcon.style.textDecoration = 'none';
+             externalIcon.innerHTML = `📖`;
+
+             // Insert it right after the verse link
+             link.parentNode?.insertBefore(externalIcon, link.nextSibling);
           }
         }
       });
