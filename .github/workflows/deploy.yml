@@ -28,22 +28,19 @@ jobs:
         with:
           node-version: 24
           cache: 'npm'
-          cache-dependency-path: 'catechism-app/package-lock.json'
+          cache-dependency-path: 'package-lock.json'
       - name: Install dependencies
-        working-directory: ./catechism-app
         run: npm ci
       - name: Scrape Data
-        working-directory: ./catechism-app
         run: node scripts/scrape.js
       - name: Build
-        working-directory: ./catechism-app
         run: npm run build
       - name: Setup Pages
         uses: actions/configure-pages@v4
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: './catechism-app/dist'
+          path: './dist'
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
