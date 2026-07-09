@@ -2,8 +2,8 @@ export async function fetchLocalData(query: string): Promise<string> {
   try {
     // 1. Fetch the master file and TOC map
     const [catResponse, tocResponse] = await Promise.all([
-      fetch(`/catechism-app/data/catechism_all.json`),
-      fetch(`/catechism-app/data/toc_map.json`)
+      fetch(`/Catechism_Modern_Search/data/catechism_all.json`),
+      fetch(`/Catechism_Modern_Search/data/toc_map.json`)
     ]);
 
     if (!catResponse.ok) {

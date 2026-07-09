@@ -6,5 +6,5 @@ export default defineConfig({
   plugins: [
     vue()
   ],
-  base: '/catechism-app/'
+  base: '/Catechism_Modern_Search/'
 })
