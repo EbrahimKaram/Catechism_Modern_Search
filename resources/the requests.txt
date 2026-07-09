@@ -1,0 +1,55 @@
+curl --request POST \
+  --url https://www.catholiccrossreference.online/catechism/ \
+  --header 'accept: text/javascript, text/html, application/xml, text/xml, */*' \
+  --header 'accept-language: en-US,en;q=0.7' \
+  --header 'content-type: application/x-www-form-urlencoded' \
+  --header 'origin: https://www.catholiccrossreference.online' \
+  --header 'priority: u=1, i' \
+  --header 'referer: https://www.catholiccrossreference.online/catechism/' \
+  --header 'sec-ch-ua: "Brave";v="149", "Chromium";v="149", "Not)A;Brand";v="24"' \
+  --header 'sec-ch-ua-mobile: ?1' \
+  --header 'sec-ch-ua-platform: "Android"' \
+  --header 'sec-fetch-dest: empty' \
+  --header 'sec-fetch-mode: cors' \
+  --header 'sec-fetch-site: same-origin' \
+  --header 'sec-gpc: 1' \
+  --header 'user-agent: Mozilla/5.0 (Linux; Android 15; Pixel 9) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Mobile Safari/537.36' \
+  --header 'x-prototype-version: 1.7' \
+  --header 'x-requested-with: XMLHttpRequest' \
+  --data TOKEN=1 \
+  --data lang=en \
+  --data query=451 \
+  --data offset=0
+
+
+
+  curl --request POST \
+  --url https://www.catholiccrossreference.online/catechism/ \
+  --header 'content-type: application/x-www-form-urlencoded' \
+  --data TOKEN=2 \
+  --data lang=en \
+  --data query=1.1.2.3 \
+  --data offset=0
+
+  curl --request POST \
+  --url https://www.catholiccrossreference.online/catechism/ \
+  --header 'accept: text/javascript, text/html, application/xml, text/xml, */*' \
+  --header 'accept-language: en-US,en;q=0.7' \
+  --header 'content-type: application/x-www-form-urlencoded' \
+  --header 'origin: https://www.catholiccrossreference.online' \
+  --header 'priority: u=1, i' \
+  --header 'referer: https://www.catholiccrossreference.online/catechism/' \
+  --header 'sec-ch-ua: "Brave";v="149", "Chromium";v="149", "Not)A;Brand";v="24"' \
+  --header 'sec-ch-ua-mobile: ?1' \
+  --header 'sec-ch-ua-platform: "Android"' \
+  --header 'sec-fetch-dest: empty' \
+  --header 'sec-fetch-mode: cors' \
+  --header 'sec-fetch-site: same-origin' \
+  --header 'sec-gpc: 1' \
+  --header 'user-agent: Mozilla/5.0 (Linux; Android 15; Pixel 9) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Mobile Safari/537.36' \
+  --header 'x-prototype-version: 1.7' \
+  --header 'x-requested-with: XMLHttpRequest' \
+  --data TOKEN=1 \
+  --data lang=en \
+  --data 'query=522,711-716,722' \
+  --data offset=0
