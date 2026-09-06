@@ -1,10 +1,10 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
+import { useRoute, useRouter, RouterLink } from 'vue-router'
 import { useHead } from '@unhead/vue'
 import SearchBar from './components/SearchBar.vue'
 import CatechismResult from './components/CatechismResult.vue'
-import { fetchLocalData } from './services/api'
+import { fetchLocalData, getLocalDataSync } from './services/api'
 
 const SITE_URL = 'https://www.ebrahimkaram.com/Catechism_Modern_Search/'
 const SITE_NAME = 'Catechism Modern Search'
@@ -18,6 +18,19 @@ const loading = ref(false)
 const error = ref('')
 
 const stripHtml = (html: string) => html.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim()
+
+// In SSR mode, populate data synchronously before renderToString captures the template
+if (import.meta.env.SSR) {
+  const initialQuery = Array.isArray(route.params.query) ? route.params.query[0] : route.params.query
+  if (initialQuery) {
+    query.value = initialQuery
+    try {
+      htmlContent.value = getLocalDataSync(initialQuery)
+    } catch (err) {
+      console.error('SSR data error:', err)
+    }
+  }
+}
 
 const handleSearch = async (searchQuery: string, navigate = true) => {
   if (!searchQuery.trim()) return;

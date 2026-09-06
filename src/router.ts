@@ -1,13 +1,17 @@
-import { createRouter, createWebHistory } from 'vue-router'
+import { createRouter, createWebHistory, createMemoryHistory, type Router } from 'vue-router'
 import App from './App.vue'
 
-const router = createRouter({
-  history: createWebHistory(import.meta.env.BASE_URL),
-  routes: [
-    { path: '/', name: 'home', component: App },
-    { path: '/catechism/:query', name: 'catechism', component: App, props: true },
-    { path: '/:pathMatch(.*)*', redirect: '/' },
-  ],
-})
+export function createRouterInstance(isServer = typeof window === 'undefined'): Router {
+  const history = isServer
+    ? createMemoryHistory(import.meta.env.BASE_URL)
+    : createWebHistory(import.meta.env.BASE_URL)
 
-export default router
+  return createRouter({
+    history,
+    routes: [
+      { path: '/', name: 'home', component: App },
+      { path: '/catechism/:query', name: 'catechism', component: App, props: true },
+      { path: '/:pathMatch(.*)*', redirect: '/' },
+    ],
+  })
+}

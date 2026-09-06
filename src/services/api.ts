@@ -1,4 +1,38 @@
+let masterDoc: any = null;
+let masterTocMap: Record<string, [number, number]> | null = null;
+let masterVerseMap: Record<string, number[]> | null = null;
+
+export function initSsrMasterData(data: {
+  tocMap: Record<string, [number, number]>;
+  verseMap: Record<string, number[]>;
+  doc: any;
+}) {
+  masterTocMap = data.tocMap;
+  masterVerseMap = data.verseMap;
+  masterDoc = data.doc;
+}
+
+export function getLocalDataSync(query: string): string {
+  if (!masterDoc || !masterTocMap || !masterVerseMap) {
+    return '';
+  }
+  const requestedParagraphs = parseQueryNumbers(query, masterTocMap, masterVerseMap);
+  if (requestedParagraphs.size === 0) {
+    return `<div class="p-4 bg-yellow-50 text-yellow-800 rounded">No matching paragraphs found. We currently support searching by paragraph number, section number (e.g. 1.1.2), or exact bible verse.</div>`;
+  }
+  const extractedHtml = extractParagraphsFromDoc(masterDoc, requestedParagraphs, true);
+  if (!extractedHtml) {
+    return `<div class="p-4 bg-red-50 text-red-800 rounded">Paragraphs not found.</div>`;
+  }
+  return extractedHtml;
+}
+
 export async function fetchLocalData(query: string): Promise<string> {
+  // If master data is already loaded in memory (e.g. SSR or preloaded), use it immediately
+  if (masterDoc && masterTocMap && masterVerseMap) {
+    return getLocalDataSync(query);
+  }
+
   try {
     // 1. Fetch the master file and maps
     const [catResponse, tocResponse, verseResponse] = await Promise.all([
@@ -24,7 +58,9 @@ export async function fetchLocalData(query: string): Promise<string> {
     }
 
     // 3. Extract the requested paragraphs out of the massive HTML block
-    const extractedHtml = extractParagraphsFromHtml(fullHtml, requestedParagraphs);
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(fullHtml, 'text/html');
+    const extractedHtml = extractParagraphsFromDoc(doc, requestedParagraphs, false);
 
     if (!extractedHtml) {
       return `<div class="p-4 bg-red-50 text-red-800 rounded">Paragraphs not found.</div>`;
@@ -40,7 +76,7 @@ export async function fetchLocalData(query: string): Promise<string> {
 /**
  * Converts a query string into a Set of numbers.
  */
-function parseQueryNumbers(query: string, tocMap: Record<string, [number, number]> = {}, verseMap: Record<string, number[]> = {}): Set<number> {
+export function parseQueryNumbers(query: string, tocMap: Record<string, [number, number]> = {}, verseMap: Record<string, number[]> = {}): Set<number> {
   const result = new Set<number>();
   
   // Clean query and check verse map first if it's text
@@ -91,12 +127,9 @@ function parseQueryNumbers(query: string, tocMap: Record<string, [number, number
 }
 
 /**
- * Uses DOMParser to find all div elements with ID `para-X`, fix their internal links, and return them as a single string.
+ * Finds all div elements with ID `para-X`, fixes their internal links, and returns them as a single string.
  */
-function extractParagraphsFromHtml(html: string, requestedParagraphs: Set<number>): string {
-  const parser = new DOMParser();
-  const doc = parser.parseFromString(html, 'text/html');
-  
+function extractParagraphsFromDoc(doc: any, requestedParagraphs: Set<number>, isClone = false): string {
   let resultHtml = '';
   
   // Convert Set to Array and sort to return paragraphs in numerical order
@@ -108,15 +141,15 @@ function extractParagraphsFromHtml(html: string, requestedParagraphs: Set<number
   
   for (const pNum of sortedParagraphs) {
     const elementId = `para-${pNum}`;
-    const pElement = doc.getElementById(elementId);
+    const origElement = doc.getElementById(elementId);
     
-    if (pElement) {
+    if (origElement) {
       // Traverse up to find section headers
       const foundHeaders: string[] = [];
-      let parent = pElement.parentElement;
+      let parent = origElement.parentElement;
       while (parent && parent.tagName === 'DIV') {
         if (parent.classList.contains('section')) {
-           const nav = parent.querySelector(':scope > .navigation');
+           const nav = parent.querySelector('.navigation');
            if (nav) {
               foundHeaders.unshift(nav.outerHTML);
            }
@@ -135,9 +168,13 @@ function extractParagraphsFromHtml(html: string, requestedParagraphs: Set<number
          lastBreadcrumbHtml = currentBreadcrumbHtml;
       }
 
+      // Clone if requested (SSR master doc) to avoid mutating the master DOM
+      const pElement = isClone ? origElement.cloneNode(true) : origElement;
+      const ownerDoc = pElement.ownerDocument || doc;
+
       // Fix links: the original HTML contains href="#!/search/something"
       const links = pElement.querySelectorAll('a');
-      links.forEach(link => {
+      links.forEach((link: any) => {
         const href = link.getAttribute('href');
         if (href && href.startsWith('#!/search/')) {
           const target = href.replace('#!/search/', '');
@@ -175,14 +212,12 @@ function extractParagraphsFromHtml(html: string, requestedParagraphs: Set<number
              link.setAttribute('href', `/Catechism_Modern_Search/catechism/${encodeURIComponent(verse)}`);
              
              // Create the external launch icon
-             const externalIcon = document.createElement('a');
+             const externalIcon = ownerDoc.createElement('a');
              externalIcon.setAttribute('href', gatewayUrl);
              externalIcon.setAttribute('target', '_blank');
              externalIcon.setAttribute('rel', 'noopener noreferrer');
              externalIcon.setAttribute('title', 'Read this chapter on Bible Gateway');
-             externalIcon.style.marginLeft = '4px';
-             externalIcon.style.opacity = '0.7';
-             externalIcon.style.textDecoration = 'none';
+             externalIcon.setAttribute('style', 'margin-left: 4px; opacity: 0.7; text-decoration: none;');
              externalIcon.innerHTML = `📖`;
 
              // Insert it right after the verse link

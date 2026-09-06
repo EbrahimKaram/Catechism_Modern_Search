@@ -9,7 +9,10 @@
   "scripts": {
     "dev": "vite",
     "generate:sitemap": "node scripts/generate_sitemap.cjs",
-    "build": "vue-tsc -b && npm run generate:sitemap && vite build",
+    "build:client": "vite build",
+    "build:server": "vite build --ssr src/entry-server.ts --outDir dist/server",
+    "prerender": "node scripts/prerender.mjs",
+    "build": "vue-tsc -b && npm run generate:sitemap && vite build && vite build --ssr src/entry-server.ts --outDir dist/server && node scripts/prerender.mjs",
     "preview": "vite preview"
   },
   "dependencies": {
@@ -20,8 +23,10 @@
   "devDependencies": {
     "@types/node": "^24.13.2",
     "@vitejs/plugin-vue": "^6.0.7",
+    "@vue/server-renderer": "^3.5.42",
     "@vue/tsconfig": "^0.9.1",
     "autoprefixer": "^10.5.2",
+    "linkedom": "^0.18.13",
     "postcss": "^8.5.16",
     "tailwindcss": "^3.4.19",
     "typescript": "~6.0.2",
