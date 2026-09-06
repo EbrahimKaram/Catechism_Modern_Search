@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://www.ebrahimkaram.com/Catechism_Modern_Search/sitemap.xml

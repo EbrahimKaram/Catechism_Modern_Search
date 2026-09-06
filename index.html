@@ -13,6 +13,29 @@
     <meta property="og:type" content="website" />
     <meta property="og:image" content="/og-image.svg" />
     <title>Catechism App</title>
+    <!-- Restores the real path after the GitHub Pages 404.html SPA redirect (github.com/rafgraph/spa-github-pages) -->
+    <script>
+      (function(l) {
+        if (l.search[1] === '/') {
+          var decoded = l.search.slice(1).split('&').map(function(s) { return s.replace(/~and~/g, '&') }).join('?');
+          window.history.replaceState(null, null, l.pathname.slice(0, -1) + decoded + l.hash);
+        }
+      }(window.location));
+    </script>
+    <!-- Structured data: enables Sitelinks Search Box eligibility -->
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "WebSite",
+        "name": "Catechism Modern Search",
+        "url": "https://www.ebrahimkaram.com/Catechism_Modern_Search/",
+        "potentialAction": {
+          "@type": "SearchAction",
+          "target": "https://www.ebrahimkaram.com/Catechism_Modern_Search/catechism/{search_term_string}",
+          "query-input": "required name=search_term_string"
+        }
+      }
+    </script>
     <!-- Google tag (gtag.js) -->
     <script async src="https://www.googletagmanager.com/gtag/js?id=G-S8XHHGBT0W"></script>
     <script>

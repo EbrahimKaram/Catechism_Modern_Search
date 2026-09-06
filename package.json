@@ -8,11 +8,14 @@
   },
   "scripts": {
     "dev": "vite",
-    "build": "vue-tsc -b && vite build",
+    "generate:sitemap": "node scripts/generate_sitemap.cjs",
+    "build": "vue-tsc -b && npm run generate:sitemap && vite build",
     "preview": "vite preview"
   },
   "dependencies": {
-    "vue": "^3.5.39"
+    "@unhead/vue": "^3.4.0",
+    "vue": "^3.5.39",
+    "vue-router": "^4.6.4"
   },
   "devDependencies": {
     "@types/node": "^24.13.2",
