@@ -10,22 +10,22 @@ const catPath = path.join(__dirname, '../public/data/catechism_all.json');
 const catechismData = JSON.parse(fs.readFileSync(catPath, 'utf8'));
 const paragraphCount = catechismData.per || 2865;
 
-const urls = [SITE_URL];
+const urls = new Set([SITE_URL]);
 
 for (const sectionId of Object.keys(tocMap)) {
-  urls.push(`${SITE_URL}catechism/${encodeURIComponent(sectionId)}`);
+  urls.add(`${SITE_URL}catechism/${encodeURIComponent(sectionId)}`);
 }
 
 for (let n = 1; n <= paragraphCount; n++) {
-  urls.push(`${SITE_URL}catechism/${n}`);
+  urls.add(`${SITE_URL}catechism/${n}`);
 }
 
 const xml = `<?xml version="1.0" encoding="UTF-8"?>\n` +
   `<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n` +
-  urls.map((url) => `  <url><loc>${url}</loc></url>`).join('\n') +
+  Array.from(urls).map((url) => `  <url><loc>${url}</loc></url>`).join('\n') +
   `\n</urlset>\n`;
 
 const outPath = path.join(__dirname, '../public/sitemap.xml');
 fs.writeFileSync(outPath, xml);
 
-console.log(`Generated sitemap.xml with ${urls.length} URLs.`);
+console.log(`Generated sitemap.xml with ${urls.size} URLs.`);
