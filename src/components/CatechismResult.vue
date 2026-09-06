@@ -1,9 +1,12 @@
 <script setup lang="ts">
 import { computed } from 'vue'
+import { useRouter } from 'vue-router'
 
 const props = defineProps<{
   html: string
 }>()
+
+const router = useRouter()
 
 // The raw HTML might contain some badly formatted tags or excessive styles. 
 // We inject it into a wrapper and apply tailwind typography styles if installed,
@@ -11,10 +14,24 @@ const props = defineProps<{
 const cleanHtml = computed(() => {
   return props.html
 })
+
+const CATECHISM_PATH_PREFIX = '/Catechism_Modern_Search/catechism/'
+
+// Internal cross-reference/verse/breadcrumb links point at real catechism URLs (for crawlability),
+// so intercept clicks on them here to keep in-app navigation client-side instead of a full page reload.
+const onContentClick = (event: MouseEvent) => {
+  const link = (event.target as HTMLElement).closest('a')
+  const href = link?.getAttribute('href')
+  if (!href || !href.startsWith(CATECHISM_PATH_PREFIX)) return
+
+  event.preventDefault()
+  const query = decodeURIComponent(href.slice(CATECHISM_PATH_PREFIX.length))
+  router.push({ name: 'catechism', params: { query } })
+}
 </script>
 
 <template>
-  <div class="catechism-content prose prose-blue max-w-none" v-html="cleanHtml"></div>
+  <div class="catechism-content prose prose-blue max-w-none" v-html="cleanHtml" @click="onContentClick"></div>
 </template>
 
 <style>

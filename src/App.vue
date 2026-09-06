@@ -1,21 +1,32 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, computed, watch, onMounted } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
+import { useHead } from '@unhead/vue'
 import SearchBar from './components/SearchBar.vue'
 import CatechismResult from './components/CatechismResult.vue'
 import { fetchLocalData } from './services/api'
+
+const SITE_URL = 'https://www.ebrahimkaram.com/Catechism_Modern_Search/'
+const SITE_NAME = 'Catechism Modern Search'
+
+const route = useRoute()
+const router = useRouter()
 
 const query = ref('')
 const htmlContent = ref('')
 const loading = ref(false)
 const error = ref('')
 
-const handleSearch = async (searchQuery: string, updateHash = true) => {
+const stripHtml = (html: string) => html.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim()
+
+const handleSearch = async (searchQuery: string, navigate = true) => {
   if (!searchQuery.trim()) return;
-  
-  if (updateHash) {
-    window.location.hash = `!/search/${encodeURIComponent(searchQuery)}`;
+
+  if (navigate) {
+    router.push({ name: 'catechism', params: { query: searchQuery } })
+    return; // the route watcher below performs the actual search once the route updates
   }
-  
+
   query.value = searchQuery
   loading.value = true
   error.value = ''
@@ -31,25 +42,74 @@ const handleSearch = async (searchQuery: string, updateHash = true) => {
   }
 }
 
-const syncHash = () => {
-  const hash = window.location.hash;
-  if (hash.startsWith('#!/search/')) {
-    const hashQuery = decodeURIComponent(hash.slice(10)); // remove '#!/search/'
-    if (hashQuery && hashQuery !== query.value) {
-      handleSearch(hashQuery, false);
+watch(
+  () => route.params.query,
+  (newQuery) => {
+    const q = Array.isArray(newQuery) ? newQuery[0] : newQuery
+    if (q && q !== query.value) {
+      handleSearch(q, false)
+    }
+  },
+  { immediate: true }
+)
+
+// Preserve old bookmarked/shared links using the previous hash-based routing scheme.
+onMounted(() => {
+  const hash = window.location.hash
+  if (hash.startsWith('#!/search/') && !route.params.query) {
+    const legacyQuery = decodeURIComponent(hash.slice('#!/search/'.length))
+    if (legacyQuery) {
+      router.replace({ name: 'catechism', params: { query: legacyQuery } })
     }
   }
-}
-
-onMounted(() => {
-  syncHash();
-  window.addEventListener('hashchange', syncHash);
 })
 
-onUnmounted(() => {
-  window.removeEventListener('hashchange', syncHash);
+const canonicalUrl = computed(() =>
+  query.value ? `${SITE_URL}catechism/${encodeURIComponent(query.value)}` : SITE_URL
+)
+
+const pageTitle = computed(() => {
+  if (!query.value) return `${SITE_NAME} — Search the Catechism of the Catholic Church`
+  return `CCC ${query.value} | ${SITE_NAME}`
 })
+
+const pageDescription = computed(() => {
+  if (!htmlContent.value) return 'A comprehensive app to explore and study the Catechism of the Catholic Church.'
+  const text = stripHtml(htmlContent.value)
+  return text.length > 155 ? `${text.slice(0, 155)}…` : text
+})
+
+useHead(() => ({
+  title: pageTitle.value,
+  meta: [
+    { name: 'description', content: pageDescription.value },
+    { property: 'og:title', content: pageTitle.value },
+    { property: 'og:description', content: pageDescription.value },
+    { property: 'og:url', content: canonicalUrl.value },
+  ],
+  link: [
+    { rel: 'canonical', href: canonicalUrl.value },
+  ],
+  script: query.value && htmlContent.value ? [
+    {
+      type: 'application/ld+json',
+      innerHTML: JSON.stringify({
+        '@context': 'https://schema.org',
+        '@type': 'DefinedTerm',
+        name: `CCC ${query.value}`,
+        description: pageDescription.value,
+        url: canonicalUrl.value,
+        inDefinedTermSet: {
+          '@type': 'DefinedTermSet',
+          name: 'Catechism of the Catholic Church',
+          url: SITE_URL,
+        },
+      }),
+    },
+  ] : [],
+}))
 </script>
+
 
 <template>
   <div class="min-h-screen bg-gray-50 text-gray-900 font-sans flex flex-col">
@@ -96,7 +156,7 @@ onUnmounted(() => {
           <svg class="w-10 h-10 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
         </div>
         <h2 class="text-2xl font-bold text-gray-800 mb-3">Find a Paragraph</h2>
-        <p class="text-gray-500 max-w-md mx-auto leading-relaxed">Enter a paragraph number (e.g. <a href="#!/search/451" class="text-blue-600 hover:underline">451</a>), section reference (e.g. <a href="#!/search/1.1.2.3" class="text-blue-600 hover:underline">1.1.2.3</a>), or multiple ranges (e.g. <a href="#!/search/522,711-716,722" class="text-blue-600 hover:underline">522,711-716,722</a>) to dive into the teachings.</p>
+        <p class="text-gray-500 max-w-md mx-auto leading-relaxed">Enter a paragraph number (e.g. <router-link :to="{ name: 'catechism', params: { query: '451' } }" class="text-blue-600 hover:underline">451</router-link>), section reference (e.g. <router-link :to="{ name: 'catechism', params: { query: '1.1.2.3' } }" class="text-blue-600 hover:underline">1.1.2.3</router-link>), or multiple ranges (e.g. <router-link :to="{ name: 'catechism', params: { query: '522,711-716,722' } }" class="text-blue-600 hover:underline">522,711-716,722</router-link>) to dive into the teachings.</p>
       </div>
     </main>
     

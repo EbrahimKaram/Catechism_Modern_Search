@@ -163,7 +163,7 @@ function extractParagraphsFromHtml(html: string, requestedParagraphs: Set<number
           }
           // 3. Catechism Cross References (pure numbers, ranges, or sections)
           else if (/^s?[\d.,\-]+$/.test(target)) {
-             link.setAttribute('href', `#!/search/${target}`);
+             link.setAttribute('href', `/Catechism_Modern_Search/catechism/${target}`);
           }
           // 4. Bible Verses & External References
           else {
@@ -172,7 +172,7 @@ function extractParagraphsFromHtml(html: string, requestedParagraphs: Set<number
              
              // Split style: The text itself links to the internal cross-reference search,
              // and we inject a small book icon next to it for the Gateway link.
-             link.setAttribute('href', `#!/search/${encodeURIComponent(verse)}`);
+             link.setAttribute('href', `/Catechism_Modern_Search/catechism/${encodeURIComponent(verse)}`);
              
              // Create the external launch icon
              const externalIcon = document.createElement('a');
@@ -197,5 +197,6 @@ function extractParagraphsFromHtml(html: string, requestedParagraphs: Set<number
     }
   }
   
-  return resultHtml;
+  // Breadcrumb nav links aren't touched by the per-paragraph link fixing above; rewrite them too.
+  return resultHtml.replace(/href="#!\/search\/([^"]+)"/g, 'href="/Catechism_Modern_Search/catechism/$1"');
 }

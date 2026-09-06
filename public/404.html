@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Catechism App</title>
+    <!-- GitHub Pages SPA fallback (github.com/rafgraph/spa-github-pages): encodes the requested -->
+    <!-- deep link into a query string and redirects to index.html, which restores it via history.replaceState. -->
+    <script>
+      var pathSegmentsToKeep = 1; // keep the "/Catechism_Modern_Search" base path segment
+      var l = window.location;
+      l.replace(
+        l.protocol + '//' + l.hostname + (l.port ? ':' + l.port : '') +
+        l.pathname.split('/').slice(0, 1 + pathSegmentsToKeep).join('/') + '/?/' +
+        l.pathname.slice(1).split('/').slice(pathSegmentsToKeep).join('/').replace(/&/g, '~and~') +
+        (l.search ? '&' + l.search.slice(1).replace(/&/g, '~and~') : '') +
+        l.hash
+      );
+    </script>
+  </head>
+  <body>
+  </body>
+</html>
