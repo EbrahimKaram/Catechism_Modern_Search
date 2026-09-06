@@ -1,3 +1,16 @@
+const SITE_URL = 'https://www.ebrahimkaram.com/Catechism_Modern_Search/';
+
+export interface BreadcrumbItem {
+  name: string;
+  url: string;
+}
+
+export interface CatechismDataResult {
+  html: string;
+  summaryText: string;
+  breadcrumbs: BreadcrumbItem[];
+}
+
 let masterDoc: any = null;
 let masterTocMap: Record<string, [number, number]> | null = null;
 let masterVerseMap: Record<string, number[]> | null = null;
@@ -12,22 +25,22 @@ export function initSsrMasterData(data: {
   masterDoc = data.doc;
 }
 
-export function getLocalDataSync(query: string): string {
+export function getLocalDataSync(query: string): CatechismDataResult {
   if (!masterDoc || !masterTocMap || !masterVerseMap) {
-    return '';
+    return { html: '', summaryText: '', breadcrumbs: [] };
   }
   const requestedParagraphs = parseQueryNumbers(query, masterTocMap, masterVerseMap);
   if (requestedParagraphs.size === 0) {
-    return `<div class="p-4 bg-yellow-50 text-yellow-800 rounded">No matching paragraphs found. We currently support searching by paragraph number, section number (e.g. 1.1.2), or exact bible verse.</div>`;
+    return {
+      html: `<div class="p-4 bg-yellow-50 text-yellow-800 rounded">No matching paragraphs found. We currently support searching by paragraph number, section number (e.g. 1.1.2), or exact bible verse.</div>`,
+      summaryText: '',
+      breadcrumbs: [],
+    };
   }
-  const extractedHtml = extractParagraphsFromDoc(masterDoc, requestedParagraphs, true);
-  if (!extractedHtml) {
-    return `<div class="p-4 bg-red-50 text-red-800 rounded">Paragraphs not found.</div>`;
-  }
-  return extractedHtml;
+  return extractParagraphsFromDoc(masterDoc, requestedParagraphs, true);
 }
 
-export async function fetchLocalData(query: string): Promise<string> {
+export async function fetchLocalData(query: string): Promise<CatechismDataResult> {
   // If master data is already loaded in memory (e.g. SSR or preloaded), use it immediately
   if (masterDoc && masterTocMap && masterVerseMap) {
     return getLocalDataSync(query);
@@ -53,20 +66,20 @@ export async function fetchLocalData(query: string): Promise<string> {
     // 2. Parse the query to find exactly what the user wants to see
     const requestedParagraphs = parseQueryNumbers(query, tocMap, verseMap);
     if (requestedParagraphs.size === 0) {
-       // If we can't parse paragraph numbers (maybe they put in a word?), just return a message
-       return `<div class="p-4 bg-yellow-50 text-yellow-800 rounded">No matching paragraphs found. We currently support searching by paragraph number, section number (e.g. 1.1.2), or exact bible verse.</div>`;
+       return {
+         html: `<div class="p-4 bg-yellow-50 text-yellow-800 rounded">No matching paragraphs found. We currently support searching by paragraph number, section number (e.g. 1.1.2), or exact bible verse.</div>`,
+         summaryText: '',
+         breadcrumbs: [],
+       };
     }
 
     // 3. Extract the requested paragraphs out of the massive HTML block
     const parser = new DOMParser();
     const doc = parser.parseFromString(fullHtml, 'text/html');
-    const extractedHtml = extractParagraphsFromDoc(doc, requestedParagraphs, false);
-
-    if (!extractedHtml) {
-      return `<div class="p-4 bg-red-50 text-red-800 rounded">Paragraphs not found.</div>`;
-    }
-
-    return extractedHtml;
+    masterTocMap = tocMap;
+    masterVerseMap = verseMap;
+    masterDoc = doc;
+    return extractParagraphsFromDoc(masterDoc, requestedParagraphs, true);
   } catch (err) {
     console.error(`Error loading local data for query ${query}:`, err);
     throw err;
@@ -127,10 +140,12 @@ export function parseQueryNumbers(query: string, tocMap: Record<string, [number,
 }
 
 /**
- * Finds all div elements with ID `para-X`, fixes their internal links, and returns them as a single string.
+ * Finds all div elements with ID `para-X`, fixes their internal links, and returns rendered HTML and metadata.
  */
-function extractParagraphsFromDoc(doc: any, requestedParagraphs: Set<number>, isClone = false): string {
+function extractParagraphsFromDoc(doc: any, requestedParagraphs: Set<number>, isClone = false): CatechismDataResult {
   let resultHtml = '';
+  const textSummaries: string[] = [];
+  const breadcrumbItems: BreadcrumbItem[] = [];
   
   // Convert Set to Array and sort to return paragraphs in numerical order
   const sortedParagraphs = Array.from(requestedParagraphs).sort((a, b) => a - b);
@@ -146,15 +161,34 @@ function extractParagraphsFromDoc(doc: any, requestedParagraphs: Set<number>, is
     if (origElement) {
       // Traverse up to find section headers
       const foundHeaders: string[] = [];
+      const currentCrumbList: BreadcrumbItem[] = [];
+
       let parent = origElement.parentElement;
       while (parent && parent.tagName === 'DIV') {
         if (parent.classList.contains('section')) {
            const nav = parent.querySelector('.navigation');
            if (nav) {
               foundHeaders.unshift(nav.outerHTML);
+              const link = nav.querySelector('a');
+              const href = link?.getAttribute('href') || '';
+              const target = href.startsWith('#!/search/')
+                ? href.slice('#!/search/'.length)
+                : (href.startsWith('/Catechism_Modern_Search/catechism/') ? href.slice('/Catechism_Modern_Search/catechism/'.length) : '');
+              const cleanText = nav.textContent?.replace(/\s*\(\d+\s*-\s*\d+\)\s*$/, '').trim() || '';
+              if (cleanText) {
+                currentCrumbList.unshift({
+                  name: cleanText,
+                  url: target ? `${SITE_URL}catechism/${encodeURIComponent(target)}` : '',
+                });
+              }
            }
         }
         parent = parent.parentElement;
+      }
+
+      // If we haven't recorded breadcrumbs yet, capture this paragraph's hierarchy
+      if (breadcrumbItems.length === 0 && currentCrumbList.length > 0) {
+        breadcrumbItems.push(...currentCrumbList);
       }
 
       let currentBreadcrumbHtml = '';
@@ -171,6 +205,27 @@ function extractParagraphsFromDoc(doc: any, requestedParagraphs: Set<number>, is
       // Clone if requested (SSR master doc) to avoid mutating the master DOM
       const pElement = isClone ? origElement.cloneNode(true) : origElement;
       const ownerDoc = pElement.ownerDocument || doc;
+
+      // Extract pure paragraph text for meta description
+      const textEl = pElement.querySelector('.text');
+      if (textEl) {
+        const textClone = textEl.cloneNode(true);
+        // Strip footnote superscripts from summary text
+        const superscripts = textClone.querySelectorAll('sup, a[id^="fnref"]');
+        superscripts.forEach((s: any) => s.remove());
+        const cleanPara = (textClone.textContent || '').replace(/\s+/g, ' ').trim();
+        if (cleanPara) {
+          textSummaries.push(cleanPara);
+        }
+      }
+
+      // Add missing alt attribute to comment images
+      const images = pElement.querySelectorAll('img');
+      images.forEach((img: any) => {
+        if (!img.getAttribute('alt')) {
+          img.setAttribute('alt', 'Add comment');
+        }
+      });
 
       // Fix links: the original HTML contains href="#!/search/something"
       const links = pElement.querySelectorAll('a');
@@ -233,5 +288,12 @@ function extractParagraphsFromDoc(doc: any, requestedParagraphs: Set<number>, is
   }
   
   // Breadcrumb nav links aren't touched by the per-paragraph link fixing above; rewrite them too.
-  return resultHtml.replace(/href="#!\/search\/([^"]+)"/g, 'href="/Catechism_Modern_Search/catechism/$1"');
+  const finalHtml = resultHtml.replace(/href="#!\/search\/([^"]+)"/g, 'href="/Catechism_Modern_Search/catechism/$1"');
+  const summaryText = textSummaries.join(' ');
+
+  return {
+    html: finalHtml,
+    summaryText,
+    breadcrumbs: breadcrumbItems,
+  };
 }

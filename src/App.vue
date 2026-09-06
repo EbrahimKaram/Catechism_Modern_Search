@@ -14,10 +14,22 @@ const router = useRouter()
 
 const query = ref('')
 const htmlContent = ref('')
+const summaryText = ref('')
+const breadcrumbs = ref<Array<{ name: string; url: string }>>([])
 const loading = ref(false)
 const error = ref('')
 
 const stripHtml = (html: string) => html.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim()
+
+const truncateAtWord = (text: string, maxLength = 155): string => {
+  if (!text || text.length <= maxLength) return text
+  const sliced = text.slice(0, maxLength)
+  const lastSpace = sliced.lastIndexOf(' ')
+  if (lastSpace > maxLength * 0.6) {
+    return `${sliced.slice(0, lastSpace).trim()}…`
+  }
+  return `${sliced.trim()}…`
+}
 
 // In SSR mode, populate data synchronously before renderToString captures the template
 if (import.meta.env.SSR) {
@@ -25,7 +37,10 @@ if (import.meta.env.SSR) {
   if (initialQuery) {
     query.value = initialQuery
     try {
-      htmlContent.value = getLocalDataSync(initialQuery)
+      const data = getLocalDataSync(initialQuery)
+      htmlContent.value = data.html
+      summaryText.value = data.summaryText
+      breadcrumbs.value = data.breadcrumbs
     } catch (err) {
       console.error('SSR data error:', err)
     }
@@ -44,9 +59,14 @@ const handleSearch = async (searchQuery: string, navigate = true) => {
   loading.value = true
   error.value = ''
   htmlContent.value = ''
+  summaryText.value = ''
+  breadcrumbs.value = []
 
   try {
-    htmlContent.value = await fetchLocalData(searchQuery)
+    const data = await fetchLocalData(searchQuery)
+    htmlContent.value = data.html
+    summaryText.value = data.summaryText
+    breadcrumbs.value = data.breadcrumbs
   } catch (err) {
       console.error(err)
       error.value = `Unable to fetch data. Please try searching for a paragraph number (e.g. "451").`
@@ -87,25 +107,29 @@ const pageTitle = computed(() => {
 })
 
 const pageDescription = computed(() => {
-  if (!htmlContent.value) return 'A comprehensive app to explore and study the Catechism of the Catholic Church.'
-  const text = stripHtml(htmlContent.value)
-  return text.length > 155 ? `${text.slice(0, 155)}…` : text
+  if (!query.value || !htmlContent.value) {
+    return 'A comprehensive app to explore and study the Catechism of the Catholic Church.'
+  }
+  if (!summaryText.value) {
+    const stripped = stripHtml(htmlContent.value)
+    return truncateAtWord(stripped, 155)
+  }
+  const prefix = `CCC ${query.value}: `
+  const mainText = `${prefix}${summaryText.value}`
+
+  if (breadcrumbs.value.length > 0 && mainText.length < 110) {
+    const crumbSuffix = breadcrumbs.value.map(b => b.name).join(' — ')
+    return truncateAtWord(`${mainText} — ${crumbSuffix}`, 155)
+  }
+  return truncateAtWord(mainText, 155)
 })
 
-useHead(() => ({
-  title: pageTitle.value,
-  meta: [
-    { name: 'description', content: pageDescription.value },
-    { property: 'og:title', content: pageTitle.value },
-    { property: 'og:description', content: pageDescription.value },
-    { property: 'og:url', content: canonicalUrl.value },
-  ],
-  link: [
-    { rel: 'canonical', href: canonicalUrl.value },
-  ],
-  script: query.value && htmlContent.value ? [
+const structuredDataScripts = computed(() => {
+  if (!query.value || !htmlContent.value) return []
+
+  const scripts = [
     {
-      type: 'application/ld+json',
+      type: 'application/ld+json' as const,
       innerHTML: JSON.stringify({
         '@context': 'https://schema.org',
         '@type': 'DefinedTerm',
@@ -119,7 +143,66 @@ useHead(() => ({
         },
       }),
     },
-  ] : [],
+  ]
+
+  const itemListElement: any[] = [
+    {
+      '@type': 'ListItem',
+      position: 1,
+      name: 'Home',
+      item: SITE_URL,
+    },
+  ]
+
+  if (breadcrumbs.value.length > 0) {
+    breadcrumbs.value.forEach((b, idx) => {
+      itemListElement.push({
+        '@type': 'ListItem',
+        position: idx + 2,
+        name: b.name,
+        item: b.url || `${SITE_URL}catechism/${encodeURIComponent(query.value)}`,
+      })
+    })
+    itemListElement.push({
+      '@type': 'ListItem',
+      position: breadcrumbs.value.length + 2,
+      name: `CCC ${query.value}`,
+      item: canonicalUrl.value,
+    })
+  } else {
+    itemListElement.push({
+      '@type': 'ListItem',
+      position: 2,
+      name: `CCC ${query.value}`,
+      item: canonicalUrl.value,
+    })
+  }
+
+  scripts.push({
+    type: 'application/ld+json' as const,
+    innerHTML: JSON.stringify({
+      '@context': 'https://schema.org',
+      '@type': 'BreadcrumbList',
+      itemListElement,
+    }),
+  })
+
+  return scripts
+})
+
+useHead(() => ({
+  title: pageTitle.value,
+  meta: [
+    { name: 'description', content: pageDescription.value },
+    { property: 'og:title', content: pageTitle.value },
+    { property: 'og:description', content: pageDescription.value },
+    { property: 'og:url', content: canonicalUrl.value },
+    { property: 'og:type', content: query.value ? 'article' : 'website' },
+  ],
+  link: [
+    { rel: 'canonical', href: canonicalUrl.value },
+  ],
+  script: structuredDataScripts.value,
 }))
 </script>
 

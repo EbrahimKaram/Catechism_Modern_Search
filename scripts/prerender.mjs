@@ -43,10 +43,17 @@ async function prerender() {
 
   // Strip template static fallback head tags that will be replaced by unhead SSR tags
   const cleanTemplate = template
+    .replace(/<meta\s+charset=".*?"\s*\/?>/gi, '')
+    .replace(/<meta\s+name="viewport"\s+content=".*?"\s*\/?>/gi, '')
     .replace(/<title>.*?<\/title>/s, '')
     .replace(/<meta\s+name="description"\s+content=".*?"\s*\/?>/gi, '')
     .replace(/<meta\s+property="og:title"\s+content=".*?"\s*\/?>/gi, '')
-    .replace(/<meta\s+property="og:description"\s+content=".*?"\s*\/?>/gi, '');
+    .replace(/<meta\s+property="og:description"\s+content=".*?"\s*\/?>/gi, '')
+    .replace(/<meta\s+property="og:type"\s+content=".*?"\s*\/?>/gi, '');
+
+  // Pre-create dist directory
+  fs.mkdirSync(distDir, { recursive: true });
+  fs.mkdirSync(path.join(distDir, 'catechism'), { recursive: true });
 
   // 6. Build route list
   const routes = ['/'];
@@ -59,10 +66,20 @@ async function prerender() {
     routes.push(`/catechism/${n}`);
   }
 
+  // Pre-create all destination directories synchronously to avoid Windows async fs race conditions
+  for (const route of routes) {
+    if (route !== '/') {
+      const subPath = route.startsWith('/') ? route.slice(1) : route;
+      const decodedSubPath = decodeURIComponent(subPath);
+      const dirPath = path.join(distDir, decodedSubPath);
+      fs.mkdirSync(dirPath, { recursive: true });
+    }
+  }
+
   console.log(`Prerendering ${routes.length} static pages with concurrency...`);
 
   let renderedCount = 0;
-  const CONCURRENCY = 50;
+  const CONCURRENCY = 20;
   let routeIndex = 0;
 
   async function worker() {
@@ -90,7 +107,6 @@ async function prerender() {
         outFilePath = path.join(distDir, decodedSubPath, 'index.html');
       }
 
-      await fs.promises.mkdir(path.dirname(outFilePath), { recursive: true });
       await fs.promises.writeFile(outFilePath, html, 'utf8');
 
       renderedCount++;
